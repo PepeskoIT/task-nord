@@ -1,0 +1,8 @@
+version: '3.7'
+
+services:
+  db:
+    ports:
+      - 3306:3306
+    volumes:
+      - ../src/alembic:/usr/local/src/alembic

@@ -1,0 +1,53 @@
+# TODO make it more common
+
+version: '3.7'
+
+x-logging: &default-logging
+ logging:
+   options:
+     max-size: "100m"
+     max-file: "3"
+   driver: local
+
+x-restart: &default-restart
+ restart: "no"
+
+services:
+  backend:
+    container_name: backend
+    build:
+      dockerfile: docker/Dockerfile
+      context: ./..
+      args:
+        APP_PATH: /usr/local/src
+    environment:
+      S3_STORAGE_URL: http://s3-nord-challenge-data.s3-website.eu-central-1.amazonaws.com
+      APP_LOGGER_NAME: root
+      DB_PASSWORD: changeme
+      DB_USER: root
+      DB_HOST: db
+      DB_PORT: 3306
+      DB_NAME: norddb
+    user: root
+    depends_on:
+      - db
+    <<: *default-logging 
+    <<: *default-restart
+
+  db:
+    container_name: db
+    image: mysql:8.0
+    environment:
+      MYSQL_ROOT_PASSWORD: changeme
+    command: --default-authentication-plugin=mysql_native_password
+    volumes:
+      - db_volume:/var/lib/mysql
+    <<: *default-logging
+    <<: *default-restart
+
+networks:
+  default:
+    driver: bridge
+
+volumes:
+  db_volume:

@@ -1,0 +1,20 @@
+[[source]]
+url = "https://pypi.org/simple"
+verify_ssl = true
+name = "pypi"
+
+[packages]
+pyspark = "3.3.1"
+pytest = "7.2.0"
+boto3 = "1.26.16"
+sqlalchemy = "1.4.44"
+alembic = "1.8.1"
+mysqlclient = "2.1.1"
+
+
+[dev-packages]
+flake8 = "*"
+pytest = "*"
+
+[requires]
+python_version = "3.10"
