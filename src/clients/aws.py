@@ -1,19 +1,25 @@
-import boto3
+import logging
+from typing import Sequence, Tuple
 
+import boto3
 from botocore import UNSIGNED
 from botocore.client import Config
-from os.path import join
 
-import logging
+from clients.web import download_file
 
 logger = logging.getLogger()
 
 DELIMITER = "/"
 
 
-def get_client_data_from_s3_url(url: str):
-    """
-    return bucket, region
+def get_client_data_from_s3_url(url: str) -> Tuple[str, str]:
+    """Extract bucket and region information from s3 url.
+
+    Args:
+        url (str): s3 url
+
+    Returns:
+        Tuple[str, str]: return bucket, region information
     """
     clean_url = url.split("//")[-1]
     decomposed_url = clean_url.split(".")
@@ -21,31 +27,61 @@ def get_client_data_from_s3_url(url: str):
 
 
 class S3Client:
-    def __init__(self, bucket: str, region: str):
+    """Wrapper class for boto3 interface.
+    """
+    def __init__(self, bucket: str, region: str, url: str) -> None:
         self.bucket = bucket
         self.region = region
+        self.url = url
         self._client = boto3.client(
             's3', region_name=region, config=Config(signature_version=UNSIGNED)
         )
 
     @classmethod
     def from_url(cls, url: str):
-        bucket, region = get_client_data_from_s3_url(url)
-        return cls(bucket, region)
+        """Instantinate class from url.
 
+        Args:
+            url (str): s3 storage url
+
+        Returns:
+            S3Client: instance
+        """
+
+        bucket, region = get_client_data_from_s3_url(url)
+        return cls(bucket, region, url)
+
+    # TODO: async maybe?
     def list_objects_content(
-            self, max_cnt: int, prefix: str, delimiter: str = "/",
+            self, max_cnt: int, prefix: str, delimiter: str = DELIMITER,
             max_keys: int = 1000
-    ):
+    ) -> Sequence:
+        """Lists meta data of task related files in the bucket.
+
+        Args:
+            max_cnt (int): total number of maximum files to return
+            prefix (str): prefix to filter s3 bucket files
+            delimiter (str, optional): folder delimiter in file key.
+                Defaults to "/".
+            max_keys (int, optional): number of files to return in single 
+                response. Defaults to 1000.
+
+        Returns:
+            Sequence: metadata from files of intrest
+
+        Yields:
+            Iterator[Sequence]: file metadata
+        """
         cnt_left = max_cnt
         rsp = None
+        data = None
         list_objects_kwargs = {}
-        is_trucated = True  # run at least ones
+        is_trucated = True
         iter = 0
 
         while is_trucated and cnt_left:
             if rsp:
-                cnt_returned = len(rsp["Contents"])
+                cnt_returned = len(data) if data else 0
                 logger.debug(f"Aquired {cnt_returned}")
                 cnt_left -= cnt_returned
                 is_trucated = rsp["IsTruncated"]
@@ -73,8 +109,23 @@ class S3Client:
                 Bucket=self.bucket, Prefix=prefix, Delimiter=delimiter,
                 MaxKeys=max_keys, **list_objects_kwargs
                 )
+            logger.debug(
+                f"Prefix {prefix}, delimiter {delimiter}, response {rsp}"
+                )
             iter += 1
-            yield from rsp["Contents"]
+            # filter out files that are not "interesting"
+            data = [
+                item
+                for item in rsp["Contents"] if "00Tree.html" not in item['Key']
+                ]
+            yield from data
 
-    def download_file(self, key: str, target_path: str):
-        self._client.download_file(self.bucket, key, target_path)
+    async def download_file(self, key: str, target_path: str) -> None:
+        """Download file from 'Key' value of s3 metadata.
+
+        Args:
+            key (str): 'Key' value from s3
+            target_path (str): local path to save file to
+        """
+        http_url = f"{self.url}/{key}"
+        await download_file(http_url, target_path)

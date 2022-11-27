@@ -4,17 +4,19 @@ verify_ssl = true
 name = "pypi"
 
 [packages]
-pyspark = "3.3.1"
-pytest = "7.2.0"
-boto3 = "1.26.16"
-sqlalchemy = "1.4.44"
+aiofiles = "22.1.0"
+aiohttp = "3.8.6"
 alembic = "1.8.1"
+asyncmy = "2.1.1"
+boto3 = "10.1.0"
 mysqlclient = "2.1.1"
+sqlalchemy = "1.4.44"
 
 
 [dev-packages]
 flake8 = "*"
 pytest = "*"
+pytest-asyncio = "*"
 
 [requires]
 python_version = "3.10"

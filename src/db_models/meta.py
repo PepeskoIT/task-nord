@@ -1,11 +1,7 @@
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy import (
-    Column, String, TIMESTAMP, text, JSON, Sequence, DateTime,
-    BIGINT, VARBINARY, VARCHAR
-)
-# from sqlalchemy.dialects.mysql import BIGINT, VARBINARY, VARCHAR
 import datetime
 
+from sqlalchemy import BIGINT, VARBINARY, VARCHAR, Column, DateTime, Sequence
+from sqlalchemy.ext.declarative import declarative_base
 
 Base = declarative_base()
 metadata = Base.metadata
@@ -13,6 +9,16 @@ metadata = Base.metadata
 
 class Meta(Base):
     __tablename__ = 'meta'
+
+    def __repr__(self) -> str:
+        return (
+            f"Meta("
+            f"hash={repr(self.hash)}, "
+            f"path={repr(self.path)}, "
+            f"size={repr(self.size)}, "
+            f"extension={repr(self.extension)}"
+            ")"
+            )
 
     id = Column(
         BIGINT, Sequence('meta_id_seq', cycle=True), primary_key=True
