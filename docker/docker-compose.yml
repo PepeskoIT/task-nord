@@ -1,6 +1,6 @@
 # TODO make it more common
 
-version: '3.7'
+version: '3.9'
 
 x-logging: &default-logging
  logging:
@@ -23,14 +23,15 @@ services:
     environment:
       S3_STORAGE_URL: http://s3-nord-challenge-data.s3-website.eu-central-1.amazonaws.com
       APP_LOGGER_NAME: root
-      DB_PASSWORD: changeme
+      DB_PASSWORD: changeme  # dont commit your password
       DB_USER: root
       DB_HOST: db
       DB_PORT: 3306
       DB_NAME: norddb
     user: root
     depends_on:
-      - db
+      db:
+        condition: service_healthy
     <<: *default-logging 
     <<: *default-restart
 
@@ -40,6 +41,12 @@ services:
     environment:
       MYSQL_ROOT_PASSWORD: changeme
     command: --default-authentication-plugin=mysql_native_password
+    healthcheck:
+      test: mysqladmin ping -h 127.0.0.1 -u root --password=$$MYSQL_ROOT_PASSWORD
+      start_period: 5s
+      interval: 5s
+      timeout: 5s
+      retries: 55
     volumes:
       - db_volume:/var/lib/mysql
     <<: *default-logging
