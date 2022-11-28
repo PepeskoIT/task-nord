@@ -24,3 +24,7 @@ Copyright 2022, Lukasz Przybyl, All rights reserved.
 
 ## Project status
 First iteration. TODO: tests, async adjustments, semaphore, pyspark comparison
+
+## High level UML
+TODO: consider more details
+![High level UML](https://cloud.pepesko.eu/index.php/s/o3b5Pyczdf8qBcA/preview "High level UML")
