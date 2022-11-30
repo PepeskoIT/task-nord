@@ -4,6 +4,7 @@ from typing import Sequence, Tuple
 import boto3
 from botocore import UNSIGNED
 from botocore.client import Config
+from processors.base import sempahore
 
 from clients.web import download_file
 
@@ -63,7 +64,7 @@ class S3Client:
             prefix (str): prefix to filter s3 bucket files
             delimiter (str, optional): folder delimiter in file key.
                 Defaults to "/".
-            max_keys (int, optional): number of files to return in single 
+            max_keys (int, optional): number of files to return in single
                 response. Defaults to 1000.
 
         Returns:
@@ -120,6 +121,7 @@ class S3Client:
                 ]
             yield from data
 
+    # @sempahore(50)
     async def download_file(self, key: str, target_path: str) -> None:
         """Download file from 'Key' value of s3 metadata.
 

@@ -1,4 +1,5 @@
 import asyncio
+import datetime
 import hashlib
 import logging
 import pathlib
@@ -11,6 +12,7 @@ from aiofiles import open as a_open
 from aiofiles import os
 
 from clients.db import get_db_session
+from common import sempahore
 from db_models.meta import Base, Meta
 
 logger = logging.getLogger()
@@ -25,6 +27,29 @@ COUNT_QUERY = (
 )
 
 
+async def cal_md5_in_chunks(file_path: str) -> str:
+    """Calculates MD5 of given file in async chunks.
+
+    Args:
+        file_path (str): path to the local file
+
+    Returns:
+        str: calculated MD5 hash
+    """
+    logger.debug(f"MD5 calc of {file_path} begging")
+    start_time = datetime.datetime.utcnow()
+
+    md5_hash = hashlib.md5()
+    async with a_open(file_path, "rb") as f:
+        async for chunk in f:
+            md5_hash.update(chunk)
+        end_time = datetime.datetime.utcnow()
+        logger.debug(
+            f"MD5 calc of {file_path} end. Took {end_time - start_time}"
+            )
+        return md5_hash.hexdigest()
+
+
 async def calc_md5(file_path: str) -> str:
     """Calculates MD5 of given file.
 
@@ -34,12 +59,15 @@ async def calc_md5(file_path: str) -> str:
     Returns:
         str: calculated MD5 hash
     """
-    md5_hash = hashlib.md5()
+    logger.debug(f"MD5 calc of {file_path} begging")
+    start_time = datetime.datetime.utcnow()
     async with a_open(file_path, "rb") as f:
-        # TODO: explicitly set read chunk size
-        async for block in f:
-            md5_hash.update(block)
-        return md5_hash.hexdigest()
+        hash = hashlib.md5(await f.read()).hexdigest()
+        end_time = datetime.datetime.utcnow()
+        logger.debug(
+            f"MD5 calc of {file_path} end. Took {end_time - start_time}"
+            )
+        return hash
 
 
 class MetaProcessor:
@@ -82,7 +110,8 @@ class MetaProcessor:
 
     @staticmethod
     async def get_hash(file_path: str) -> str:
-        return await calc_md5(file_path)
+        # return await calc_md5(file_path)
+        return await cal_md5_in_chunks(file_path)
 
     @abstractmethod
     async def download_file(self, src: str, dest: str) -> None:
@@ -96,6 +125,11 @@ class MetaProcessor:
 
     @staticmethod
     async def send_to_db(db_entry: Base) -> None:
+        """Sends data object to database
+
+        Args:
+            db_entry (Base): data object
+        """
         logger.debug(f"Entry process: {str(db_entry)}")
         async with get_db_session() as session:
             is_already_in_db = (await session.execute(
@@ -107,7 +141,25 @@ class MetaProcessor:
                 session.add(db_entry)
                 logger.debug(f"Added new row to db: {str(db_entry)}")
 
+    @sempahore(50)
+    async def io_file_process(self, src: str, dest: str) -> bytes:
+        """Groups io file related actions.
+
+        Args:
+            src (str): source url to download file from
+            dest (str): local target path to download file to
+        Returns:
+            bytes: metadata aquired through sequentional i/o actions
+        """
+        await self.download_file(src, dest)
+        # TODO: check arch
+        # TODO: check imports?
+        # TODO: check exports?
+
+        return await self.get_hash(dest)
+
     async def proces_item(self, item: Any) -> None:
+        # async with PROCESS_FILE_SEM as sem:
         """Process aquired metadata of given file.
 
         Args:
@@ -122,12 +174,7 @@ class MetaProcessor:
         extension = self.get_extension(path)
         target_path = join(LOCAL_DL_DIR, path.split("/")[-1])
 
-        # TODO: group processing of downloaded file - into one method maybe?
-        await self.download_file(path, target_path)
-        hash = await self.get_hash(target_path)
-        # TODO: check arch
-        # TODO: check imports?
-        # TODO: check exports?
+        hash = await self.io_file_process(path, target_path)
 
         await self.send_to_db(
             Meta(
@@ -147,12 +194,12 @@ class MetaProcessor:
         # after processing completed
         await os.makedirs(LOCAL_DL_DIR, exist_ok=True)
 
-        # TODO: add semaphore
         all_files_to_process = (
             chain(
                 self.list_clean_files(n_clean),
                 self.list_malicious_files(n_malicious)
                 )
             )
+
         coroutines = [self.proces_item(item) for item in all_files_to_process]
         await asyncio.gather(*coroutines)

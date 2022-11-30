@@ -21,8 +21,9 @@ DB_SYNC_URL = DB_URL_TEMPLATE.format(db_driver=DB_SYNC_DRIVER)
 
 ENGINE = create_async_engine(
     DB_ASYNC_URL, future=True, echo=True,
-    pool_size=20, max_overflow=10
+    pool_size=200, max_overflow=100, pool_recycle=3600
     )
+
 
 ASYNC_SESSION = sessionmaker(
     ENGINE, expire_on_commit=False, class_=AsyncSession

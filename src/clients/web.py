@@ -1,13 +1,9 @@
 import logging
-from asyncio import Semaphore
 
 import aiofiles
 from aiohttp.client import ClientSession
 
 logger = logging.getLogger()
-CONCURRENT_DOWNLOAD_LIMIT = 100
-
-SEM = Semaphore(CONCURRENT_DOWNLOAD_LIMIT)
 
 
 async def download_file(src: str, dest: str) -> None:
