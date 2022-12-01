@@ -1,19 +1,16 @@
-import asyncio
 import datetime
 import hashlib
 import logging
+import os
 import pathlib
 from abc import abstractmethod
-from itertools import chain
 from os.path import join
-from typing import Any, Sequence
+from typing import Tuple
 
-from aiofiles import open as a_open
-from aiofiles import os
+from pyspark.sql import SparkSession
 
-from clients.db import get_db_session
-from common import sempahore
-from db_models.meta import Base, Meta
+from clients.aws import FileUrl
+from db_models.meta import Meta
 
 logger = logging.getLogger()
 
@@ -27,30 +24,7 @@ COUNT_QUERY = (
 )
 
 
-async def cal_md5_in_chunks(file_path: str) -> str:
-    """Calculates MD5 of given file in async chunks.
-
-    Args:
-        file_path (str): path to the local file
-
-    Returns:
-        str: calculated MD5 hash
-    """
-    logger.debug(f"MD5 calc of {file_path} begging")
-    start_time = datetime.datetime.utcnow()
-
-    md5_hash = hashlib.md5()
-    async with a_open(file_path, "rb") as f:
-        async for chunk in f:
-            md5_hash.update(chunk)
-        end_time = datetime.datetime.utcnow()
-        logger.debug(
-            f"MD5 calc of {file_path} end. Took {end_time - start_time}"
-            )
-        return md5_hash.hexdigest()
-
-
-async def calc_md5(file_path: str) -> str:
+def calc_md5(file_path: str) -> str:
     """Calculates MD5 of given file.
 
     Args:
@@ -61,8 +35,8 @@ async def calc_md5(file_path: str) -> str:
     """
     logger.debug(f"MD5 calc of {file_path} begging")
     start_time = datetime.datetime.utcnow()
-    async with a_open(file_path, "rb") as f:
-        hash = hashlib.md5(await f.read()).hexdigest()
+    with open(file_path, "rb") as f:
+        hash = hashlib.md5(f.read()).hexdigest()
         end_time = datetime.datetime.utcnow()
         logger.debug(
             f"MD5 calc of {file_path} end. Took {end_time - start_time}"
@@ -70,79 +44,31 @@ async def calc_md5(file_path: str) -> str:
         return hash
 
 
+def get_extension(file_path: str) -> str:
+    """Aquires extension from file path.
+
+    Args:
+        file_path (str): path of the file
+
+    Returns:
+        str: file extension
+    """
+    # lets assume file ext names are correct for this dev iteration
+    # TODO: check for more sophisticated ways of detections
+    return pathlib.Path(file_path).suffix[1:]
+
+
 class MetaProcessor:
-    """Interface base class for meta data agregattion and processing.
+    """Interface base class for meta urls processing.
     Should be interited from when introducing new metadata processing inputs
     and outputs.
     """
 
-    def __init__(self, data_client, ) -> None:
-        self.data_client = data_client
-        pass
-
     @abstractmethod
-    def list_malicious_files(self, n: int) -> Sequence:
+    def download_file(self, src: str, dest: str) -> None:
         pass
 
-    @abstractmethod
-    def list_clean_files(self, n: int) -> Sequence:
-        pass
-
-    @abstractmethod
-    def get_path(data: Any) -> str:
-        pass
-
-    @abstractmethod
-    def get_size(data: Any) -> str:
-        pass
-
-    @staticmethod
-    def get_extension(file_path: str) -> str:
-        """Aquires extension from file path.
-
-        Args:
-            file_path (str): path of the file
-
-        Returns:
-            str: file extension
-        """
-        return pathlib.Path(file_path).suffix[1:]
-
-    @staticmethod
-    async def get_hash(file_path: str) -> str:
-        # return await calc_md5(file_path)
-        return await cal_md5_in_chunks(file_path)
-
-    @abstractmethod
-    async def download_file(self, src: str, dest: str) -> None:
-        """Download file.
-
-        Args:
-            src (str): source path to download from
-            dest (str): destination path to download to
-        """
-        pass
-
-    @staticmethod
-    async def send_to_db(db_entry: Base) -> None:
-        """Sends data object to database
-
-        Args:
-            db_entry (Base): data object
-        """
-        logger.debug(f"Entry process: {str(db_entry)}")
-        async with get_db_session() as session:
-            is_already_in_db = (await session.execute(
-                COUNT_QUERY, {"hash": db_entry.hash}
-
-            )).first()[0]
-            logger.debug(f"DB query result: {is_already_in_db}")
-            if not is_already_in_db:
-                session.add(db_entry)
-                logger.debug(f"Added new row to db: {str(db_entry)}")
-
-    @sempahore(50)
-    async def io_file_process(self, src: str, dest: str) -> bytes:
+    def io_file_process(self, src: str, dest: str) -> Tuple[bytes, int]:
         """Groups io file related actions.
 
         Args:
@@ -151,39 +77,42 @@ class MetaProcessor:
         Returns:
             bytes: metadata aquired through sequentional i/o actions
         """
-        await self.download_file(src, dest)
+        self.download_file(src, dest)
         # TODO: check arch
         # TODO: check imports?
         # TODO: check exports?
+        return calc_md5(dest), os.path.getsize(dest)
 
-        return await self.get_hash(dest)
-
-    async def proces_item(self, item: Any) -> None:
-        # async with PROCESS_FILE_SEM as sem:
-        """Process aquired metadata of given file.
+    def process_item(self, url: FileUrl) -> None:
+        """Process given file url.
 
         Args:
-            item (Any): object with file metadata
+            url (FileUrl): url of file to analyse
         """
-        logger.debug(f"Processing item: {item}")
+        logger.debug(f"Processing item: {url}")
 
-        path = self.get_path(item)
-        size = self.get_size(item)
-        # lets assume file ext names are correct for this dev iteration
-        # TODO: check for more sophisticated ways of detections
-        extension = self.get_extension(path)
+        path = url.path
+
+        extension = get_extension(path)
         target_path = join(LOCAL_DL_DIR, path.split("/")[-1])
 
-        hash = await self.io_file_process(path, target_path)
+        hash, size = self.io_file_process(url, target_path)
 
-        await self.send_to_db(
+        self.send_to_db(
             Meta(
                     hash=str.encode(hash), size=size,
                     path=path, extension=extension.lower(),
                 )
         )
 
-    async def process_data(self, n_malicious: int, n_clean: int) -> None:
+    def spark_processor(self, items_to_process):
+        spark = SparkSession.builder.appName('backend').getOrCreate()
+        sc = spark.sparkContext
+
+        rdd = sc.parallelize(items_to_process)
+        rdd.foreach(lambda item: self.process_item(item))
+
+    def process_files(self, urls) -> None:
         """Process metadata n of malicious and n of clean files.
 
         Args:
@@ -192,14 +121,6 @@ class MetaProcessor:
         """
         # TODO: consider local dir as TemporaryDirectory - self cleanup
         # after processing completed
-        await os.makedirs(LOCAL_DL_DIR, exist_ok=True)
+        os.makedirs(LOCAL_DL_DIR, exist_ok=True)
 
-        all_files_to_process = (
-            chain(
-                self.list_clean_files(n_clean),
-                self.list_malicious_files(n_malicious)
-                )
-            )
-
-        coroutines = [self.proces_item(item) for item in all_files_to_process]
-        await asyncio.gather(*coroutines)
+        self.spark_processor(urls)

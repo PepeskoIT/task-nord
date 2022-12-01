@@ -1,9 +1,13 @@
+import logging
+from itertools import chain
 from typing import Tuple
 
+from clients.aws import S3Scrapper
+from definitions import BOTO3_CLIENT, BUCKET
 from envs import S3_STORAGE_URL
-from processors.s3 import S3Processor
+from processors.s3_to_mysql import S3MysqlProcessor
 
-S3 = S3Processor(S3_STORAGE_URL)
+logger = logging.getLogger()
 
 
 def calculate_cnt_div(n: int) -> Tuple[int, int]:
@@ -20,11 +24,24 @@ def calculate_cnt_div(n: int) -> Tuple[int, int]:
     return n//2, n//2
 
 
-async def process_all(n: int) -> None:
+def process_all(n: int) -> None:
     """Process number of malicious and clean files.
 
     Args:
         n (int): number to calculate clean and malicious files to process
     """
+
+    s3scrapper = S3Scrapper(
+        bucket=BUCKET, boto3_client=BOTO3_CLIENT, root_url=S3_STORAGE_URL
+        )
+
+    processor = S3MysqlProcessor()
+
     malicious_cnt, clean_cnt = calculate_cnt_div(n)
-    await S3.process_data(malicious_cnt, clean_cnt)
+    urls_to_process = (
+            chain(
+                s3scrapper.list_malicious_files_urls(clean_cnt),
+                s3scrapper.list_clean_files_urls(malicious_cnt)
+                )
+            )
+    processor.process_files(urls_to_process)

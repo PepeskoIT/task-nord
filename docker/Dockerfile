@@ -10,6 +10,7 @@ RUN apt-get clean \
     # install stuff
     && apt-get install -y locales \
     python3-dev default-libmysqlclient-dev build-essential \
+    default-jdk \
     # end of install
     && echo "en_US.UTF-8 UTF-8" > /etc/locale.gen \
     && locale-gen \

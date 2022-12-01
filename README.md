@@ -23,8 +23,21 @@ Lukasz Przybyl - joboffers@pepesko.eu
 Copyright 2022, Lukasz Przybyl, All rights reserved.
 
 ## Project status
-First iteration. TODO: tests, async adjustments, semaphore, pyspark comparison
+First iteration. TODO: tests, more detailed UML, add remaining processing like imports and arch analysis.
 
 ## High level UML
 TODO: consider more details
 ![High level UML](https://cloud.pepesko.eu/index.php/s/o3b5Pyczdf8qBcA/preview "High level UML")
+
+## Frameworks implementation benchmark results
+Measured executions times depending on choosen files pool and implentation framework.
+Pyspark is a clear winner performance wise. Almost 4x faster then previous async implementation.
+
+| framework implementation | N_NUMBER of files to process  | Measured execution time (h:min:s)|
+| --- | --- | --- |
+| sync | 2000 | 00:12:36 |
+| async | 2000 | 00:03:33 |
+| pyspark | 2000 | 00:01:04 |
+| sync | 20000 | N/A|
+| async | 20000 | 00:38:32 |
+| pyspark | 20000 |  00:11:13 |
