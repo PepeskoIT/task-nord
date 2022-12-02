@@ -27,7 +27,7 @@ First iteration. TODO: tests, more detailed UML, add remaining processing like i
 
 ## High level UML
 TODO: consider more details
-![High level UML](https://cloud.pepesko.eu/index.php/s/o3b5Pyczdf8qBcA/preview "High level UML")
+![High level UML](https://geckon.duckdns.org/index.php/s/p7Qg7MQr9PxW4iZ/preview "High level UML")
 
 ## Frameworks implementation benchmark results
 Measured executions times depending on choosen files pool and implentation framework.
