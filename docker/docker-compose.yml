@@ -40,7 +40,7 @@ services:
     image: mysql:8.0
     environment:
       MYSQL_ROOT_PASSWORD: changeme
-    command: --default-authentication-plugin=mysql_native_password --max_connections=1000
+    command: --default-authentication-plugin=mysql_native_password --max_connections=1000 --init-file /tmp/init.sql
     healthcheck:
       test: mysqladmin ping -h 127.0.0.1 -u root --password=$$MYSQL_ROOT_PASSWORD
       start_period: 5s
@@ -48,6 +48,7 @@ services:
       timeout: 5s
       retries: 55
     volumes:
+      - ./init.sql:/tmp/init.sql
       - db_volume:/var/lib/mysql
     <<: *default-logging
     <<: *default-restart

@@ -10,7 +10,6 @@ Simple analysis and processing service to visiualise OOP and python skills.
 Docker with compose plugin.
 
 ## Usage
-One needs to create 'norddb' database manually at the begging.
 While in docker/ folder you can do:
 ```
 docker compose -f docker-compose.yml -f docker-compose.local.yml up -d
@@ -23,11 +22,10 @@ Lukasz Przybyl - joboffers@pepesko.eu
 Copyright 2022, Lukasz Przybyl, All rights reserved.
 
 ## Project status
-First iteration. TODO: tests, more detailed UML, add remaining processing like imports and arch analysis.
+First iteration. TODO: add tests.
 
 ## High level UML
-TODO: consider more details
-![High level UML](https://geckon.duckdns.org/index.php/s/p7Qg7MQr9PxW4iZ/preview "High level UML")
+![High level UML](https://geckon.duckdns.org/index.php/s/yKTjZqkKMFSLNeJ/preview "High level UML")
 
 ## Frameworks implementation benchmark results
 Measured executions times depending on choosen files pool and implentation framework.

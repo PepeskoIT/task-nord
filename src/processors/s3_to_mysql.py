@@ -4,6 +4,7 @@ from clients.db import get_db_session
 from db_models.meta import Meta
 from definitions import BOTO3_CLIENT, BUCKET
 from processors.base import MetaProcessor
+from typing import Sequence
 
 logger = logging.getLogger()
 
