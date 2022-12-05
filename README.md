@@ -25,7 +25,7 @@ Copyright 2022, Lukasz Przybyl, All rights reserved.
 First iteration. TODO: add tests.
 
 ## High level UML
-![High level UML](https://geckon.duckdns.org/index.php/s/yKTjZqkKMFSLNeJ/preview "High level UML")
+![High level UML](https://cloud.pepesko.eu/index.php/s/FMt3McbnFZXddEq/download/nord_inner_export.drawio.png "High level UML")
 
 ## Frameworks implementation benchmark results
 Measured executions times depending on choosen files pool and implentation framework.
