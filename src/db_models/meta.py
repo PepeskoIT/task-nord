@@ -16,7 +16,8 @@ class Meta(Base):
             f"hash={repr(self.hash)}, "
             f"path={repr(self.path)}, "
             f"size={repr(self.size)}, "
-            f"extension={repr(self.extension)}"
+            f"extension={repr(self.extension)}, "
+            f"arch={repr(self.arch)}"
             ")"
             )
 
@@ -30,3 +31,4 @@ class Meta(Base):
     path = Column(VARCHAR(260), nullable=False)
     size = Column(BIGINT(), nullable=False)
     extension = Column(VARCHAR(6), nullable=False)
+    arch = Column(VARCHAR(16), nullable=True)

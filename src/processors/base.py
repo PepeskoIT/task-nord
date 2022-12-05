@@ -6,6 +6,7 @@ import pathlib
 from abc import abstractmethod
 from os.path import join
 from typing import Tuple
+import subprocess
 
 from pyspark.sql import SparkSession
 
@@ -23,6 +24,8 @@ COUNT_QUERY = (
     from meta where hash = :hash"""
 )
 
+ARCH_START_IDX = "\narchitecture: "
+ARCH_END_IDX = ", flags"
 
 def calc_md5(file_path: str) -> str:
     """Calculates MD5 of given file.
@@ -42,6 +45,23 @@ def calc_md5(file_path: str) -> str:
             f"MD5 calc of {file_path} end. Took {end_time - start_time}"
             )
         return hash
+
+
+def get_arch(file_path):
+    objdump_r = subprocess.run(
+        f"objdump -f {file_path}".split(),
+        capture_output=True
+    )
+    err = objdump_r.stderr.decode('utf-8').strip()
+    if err:
+        logger.warning(f"Error during objdump: {err}")
+        return None
+    objdump_r = objdump_r.stdout.decode('utf-8').strip()
+    start_idx = objdump_r.find(ARCH_START_IDX) + len(ARCH_START_IDX)
+    end_idx = objdump_r.find(ARCH_END_IDX)
+    arch = objdump_r[start_idx:end_idx]
+    logger.debug(f"detected architecture of {file_path} is {arch}")
+    return arch
 
 
 def get_extension(file_path: str) -> str:
@@ -81,7 +101,7 @@ class MetaProcessor:
         # TODO: check arch
         # TODO: check imports?
         # TODO: check exports?
-        return calc_md5(dest), os.path.getsize(dest)
+        return calc_md5(dest), os.path.getsize(dest), get_arch(dest)
 
     def process_item(self, url: FileUrl) -> None:
         """Process given file url.
@@ -94,14 +114,15 @@ class MetaProcessor:
         path = url.path
 
         extension = get_extension(path)
+
         target_path = join(LOCAL_DL_DIR, path.split("/")[-1])
 
-        hash, size = self.io_file_process(url, target_path)
+        hash, size, arch = self.io_file_process(url, target_path)
 
         self.send_to_db(
             Meta(
                     hash=str.encode(hash), size=size,
-                    path=path, extension=extension.lower(),
+                    path=path, extension=extension.lower(), arch=arch
                 )
         )
 
