@@ -4,7 +4,7 @@ import subprocess
 logger = logging.getLogger()
 
 
-def run_cmdb(cmdb: str, check=True) -> str:
+def run_cmd(cmd: str, check=True) -> str:
     """General command execution.
 
     Args:
@@ -17,13 +17,13 @@ def run_cmdb(cmdb: str, check=True) -> str:
     """
     try:
         cmdb_response = subprocess.run(
-            cmdb.split(),
+            cmd.split(),
             capture_output=True,
             check=check
         )
     except subprocess.CalledProcessError as e:
         logger.warning(
-            f"Error while exec cmdb {cmdb}. Return code: {e.returncode}. "
+            f"Error while exec cmdb {cmd}. Return code: {e.returncode}. "
             f"Stdout: {e.stdout.decode('utf-8').strip()}. "
             f"Stderr: {e.stderr.decode('utf-8').strip()}"
             )

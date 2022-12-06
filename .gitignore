@@ -2,3 +2,4 @@
 env.sh
 logs
 .vscode
+__pycache__

@@ -6,12 +6,12 @@ import pathlib
 from abc import abstractmethod
 from os.path import join
 from subprocess import CalledProcessError
-from typing import Tuple
+from typing import Sequence, Tuple, Union
 
 from pyspark.sql import SparkSession
 
 from clients.aws import FileUrl
-from clients.shell import run_cmdb
+from clients.shell import run_cmd
 from db_models.meta import Meta
 
 logger = logging.getLogger()
@@ -49,50 +49,84 @@ def calc_md5(file_path: str) -> str:
         return hash
 
 
-def get_arch(file_path):
+def get_arch(file_path: str) -> Union[str, None]:
+    """Aquire architechture information about PE file.
+
+    Args:
+        file_path (str): path to file under analysis
+
+    Returns:
+        Union[str, None]: found architecture
+    """
+
+    arch = None
     try:
-        objdump_r = run_cmdb(f"objdump -f {file_path}")
+        objdump_r = run_cmd(f"objdump -f {file_path}")
     except CalledProcessError:
-        return None
+        pass
     else:
         # TODO: consider regex. Need more analysis if this is always valid
         start_idx = objdump_r.find(ARCH_START_IDX) + len(ARCH_START_IDX)
         end_idx = objdump_r.find(ARCH_END_IDX)
         arch = objdump_r[start_idx:end_idx]
         logger.debug(f"Found arch '{arch}'")
-        return arch
+    return arch
 
 
-def get_imports(file_path):
+def get_imports(file_path: str) -> Union[Sequence, None]:
+    """Aquire imports information from PE file.
+
+    Args:
+        file_path (str): path to file under analysis
+
+    Returns:
+        Union[Sequence, None]: found import files
+    """
+    imports = None
     try:
-        objdump_imports_r = run_cmdb(f"winedump -j import {file_path}")
+        objdump_imports_r = run_cmd(f"winedump -j import {file_path}")
     except CalledProcessError:
-        return None
+        pass
     else:
-        # TODO: consider regex. Need more analysis if this is always valid
-        imports = [
-            line.strip().split()[-1]
-            for line in objdump_imports_r.split("\n")
-            if line.strip().startswith("offset")
+        # TODO: more fancy way of detecting error needed since winedump
+        #  return code 0 even when error occured...
+        if "aborting" not in objdump_imports_r:
+            # TODO: consider regex. Need more analysis if this is always valid
+            imports = [
+                line.strip().split()[-1]
+                for line in objdump_imports_r.split("\n")
+                if line.strip().startswith("offset")
+                ]
+            logger.debug(f"Found imports '{imports}'")
+    return imports
+
+
+def get_exports(file_path: str) -> Union[Sequence, None]:
+    """Aquire exports information from PE file.
+
+    Args:
+        file_path (str): path to file under analysis
+
+    Returns:
+        Union[Sequence, None]: found export files
+    """
+    exports = None
+    try:
+        objdump_exports_r = run_cmd(f"winedump -j export {file_path}")
+    except CalledProcessError:
+        pass
+    else:
+        # TODO: more fancy way of detecting error needed since winedump
+        #  return code 0 even when error occured...
+        if "aborting" not in objdump_exports_r:
+            # TODO: consider regex. Need more analysis if this is always valid
+            exports = [
+                line.strip().split()[-1]
+                for line in objdump_exports_r.split("\n")
+                if line.strip().startswith("Name:")
             ]
-        logger.debug(f"Found imports '{imports}'")
-        return imports
-
-
-def get_exports(file_path):
-    try:
-        objdump_exports_r = run_cmdb(f"winedump -j export {file_path}")
-    except CalledProcessError:
-        return None
-    else:
-        # TODO: consider regex. Need more analysis if this is always valid
-        exports = [
-            line.strip().split()[-1]
-            for line in objdump_exports_r.split("\n")
-            if line.strip().startswith("Name:")
-        ]
-        logger.debug(f"Found eports '{exports}'")
-        return exports
+            logger.debug(f"Found eports '{exports}'")
+    return exports
 
 
 def get_extension(file_path: str) -> str:
@@ -132,9 +166,18 @@ class MetaProcessor:
         # TODO: one flow for PE analysis - if file is reported corrupted
         # like 'file format not recognized'
         # there is need to run remaining analysis.
+        try:
+            imports = len(get_imports(dest))
+        except TypeError:
+            imports = None
+
+        try:
+            exports = len(get_exports(dest))
+        except TypeError:
+            exports = None
         return (
             calc_md5(dest), os.path.getsize(dest), get_arch(dest),
-            len(get_imports(dest)), len(get_exports(dest))
+            imports, exports
         )
 
     def process_item(self, url: FileUrl) -> None:
